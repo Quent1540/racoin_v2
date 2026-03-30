@@ -28,7 +28,6 @@ class AddController
 
     public function addNewItem($twig, $menu, $chemin, array $allPostVars): void
     {
-
         date_default_timezone_set('Europe/Paris');
 
         $nom              = trim((string) ($allPostVars['nom'] ?? ''));
@@ -43,51 +42,68 @@ class AddController
         $password         = trim((string) ($allPostVars['psw'] ?? ''));
         $password_confirm = trim((string) ($allPostVars['confirm-psw'] ?? ''));
 
-        $errors = array_filter([
-            'nameAdvertiser' => $nom === '' || $nom === '0' ? 'Veuillez entrer votre nom' : '',
-            'emailAdvertiser' => $this->isEmail($email) ? '' : 'Veuillez entrer une adresse mail correcte',
-            'phoneAdvertiser' => (($phone === '' || $phone === '0') && !is_numeric($phone)) ? 'Veuillez entrer votre numéro de téléphone' : '',
-            'villeAdvertiser' => $ville === '' || $ville === '0' ? 'Veuillez entrer votre ville' : '',
-            'departmentAdvertiser' => !is_numeric($departement) ? 'Veuillez choisir un département' : '',
-            'categorieAdvertiser' => !is_numeric($categorie) ? 'Veuillez choisir une catégorie' : '',
-            'titleAdvertiser' => $title === '' || $title === '0' ? 'Veuillez entrer un titre' : '',
-            'descriptionAdvertiser' => $description === '' || $description === '0' ? 'Veuillez entrer une description' : '',
-            'priceAdvertiser' => ($price === '' || $price === '0' || !is_numeric($price)) ? 'Veuillez entrer un prix' : '',
-            'passwordAdvertiser' => ($password === '' || $password === '0' || ($password_confirm === '' || $password_confirm === '0') || $password !== $password_confirm) ? 'Les mots de passes ne sont pas identiques' : ''
-        ]);
+        $errors = [];
+        if ($nom === '' || $nom === '0') {
+            $errors[] = 'Veuillez entrer votre nom';
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Veuillez entrer une adresse mail correcte';
+        }
+        if ($phone === '' || !is_numeric($phone)) {
+            $errors[] = 'Veuillez entrer votre numéro de téléphone';
+        }
+        if ($ville === '' || $ville === '0') {
+            $errors[] = 'Veuillez entrer votre ville';
+        }
+        if (!is_numeric($departement)) {
+            $errors[] = 'Veuillez choisir un département';
+        }
+        if (!is_numeric($categorie)) {
+            $errors[] = 'Veuillez choisir une catégorie';
+        }
+        if ($title === '' || $title === '0') {
+            $errors[] = 'Veuillez entrer un titre';
+        }
+        if ($description === '' || $description === '0') {
+            $errors[] = 'Veuillez entrer une description';
+        }
+        if ($price === '' || !is_numeric($price)) {
+            $errors[] = 'Veuillez entrer un prix';
+        }
+        if ($password === '' || $password_confirm === '' || $password !== $password_confirm) {
+            $errors[] = 'Les mots de passes ne sont pas identiques';
+        }
 
         if ($errors !== []) {
             $template = $twig->load("add-error.html.twig");
-            echo $template->render([
-                    "breadcrumb" => $menu,
-                    "chemin"     => $chemin,
-                    "errors"     => array_values($errors)
-                ]
-            );
+            echo $template->render(['breadcrumb' => $menu, 'chemin' => $chemin, 'errors' => $errors]);
             return;
         }
 
         $annonce   = new Annonce();
         $annonceur = new Annonceur();
 
-        $annonceur->email         = htmlentities((string) ($allPostVars['email'] ?? ''));
-        $annonceur->nom_annonceur = htmlentities((string) ($allPostVars['nom'] ?? ''));
-        $annonceur->telephone     = htmlentities((string) ($allPostVars['phone'] ?? ''));
+        $annonceur->email         = htmlentities($email);
+        $annonceur->nom_annonceur = htmlentities($nom);
+        $annonceur->telephone     = htmlentities($phone);
 
-        $annonce->ville          = htmlentities((string) ($allPostVars['ville'] ?? ''));
-        $annonce->id_departement = $allPostVars['departement'] ?? null;
-        $annonce->prix           = htmlentities((string) ($allPostVars['price'] ?? ''));
-        $annonce->mdp            = password_hash((string) ($allPostVars['psw'] ?? ''), PASSWORD_DEFAULT);
-        $annonce->titre          = htmlentities((string) ($allPostVars['title'] ?? ''));
-        $annonce->description    = htmlentities((string) ($allPostVars['description'] ?? ''));
-        $annonce->id_categorie   = $allPostVars['categorie'] ?? null;
+        $annonce->ville          = htmlentities($ville);
+        $annonce->id_departement = (int) $departement;
+        $annonce->prix           = (float) $price;
+        $annonce->titre          = htmlentities($title);
+        $annonce->description    = htmlentities($description);
+        $annonce->id_categorie   = (int) $categorie;
         $annonce->date           = date('Y-m-d');
+
+        if ($password !== '') {
+            $annonce->mdp = password_hash($password, PASSWORD_DEFAULT);
+        }
 
         $annonceur->save();
         $annonceur->annonce()->save($annonce);
 
         $template = $twig->load("add-confirm.html.twig");
-        echo $template->render(["breadcrumb" => $menu, "chemin" => $chemin]);
+        echo $template->render(['breadcrumb' => $menu, 'chemin' => $chemin]);
     }
 }
 
