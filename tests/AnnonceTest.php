@@ -1,12 +1,15 @@
 <?php
 
+namespace tests;
+
 use PHPUnit\Framework\TestCase;
+use App\Model\Annonce;
 
 class AnnonceTest extends TestCase
 {
     public function test_model_relations_and_properties()
     {
-        $a = new \model\Annonce();
+        $a = new Annonce();
 
         $this->assertEquals('annonce', $a->getTable());
         $this->assertEquals('id_annonce', $a->getKeyName());
@@ -16,4 +19,3 @@ class AnnonceTest extends TestCase
         $this->assertTrue(method_exists($a, 'photo'));
     }
 }
-

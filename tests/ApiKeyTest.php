@@ -3,7 +3,7 @@
 namespace tests;
 
 use PHPUnit\Framework\TestCase;
-use model\ApiKey;
+use App\Model\ApiKey;
 
 class ApiKeyTest extends TestCase {
     public function testApiKeyTableGood() {

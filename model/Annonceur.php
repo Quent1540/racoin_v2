@@ -1,6 +1,6 @@
 <?php
 
-namespace model;
+namespace App\Model;
 
 class Annonceur extends \Illuminate\Database\Eloquent\Model {
     protected $table = 'annonceur';
@@ -9,6 +9,6 @@ class Annonceur extends \Illuminate\Database\Eloquent\Model {
 
     public function annonce()
     {
-        return $this->hasMany('model\Annonce', 'id_annonceur');
+        return $this->hasMany('App\\Model\\Annonce', 'id_annonceur');
     }
 }
