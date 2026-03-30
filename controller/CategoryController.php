@@ -6,17 +6,16 @@ use App\Model\Categorie;
 use App\Model\Annonce;
 use App\Model\Photo;
 use App\Model\Annonceur;
-use model\Categorie;
 
 class CategoryController {
 
-    protected $categories = array();
+    public array $annonce = [];
 
-    public function getCategories() {
+    public function getCategories(): array {
         return Categorie::orderBy('nom_categorie')->get()->toArray();
     }
 
-    public function getCategorieContent($chemin, $n) {
+    public function getCategorieContent(string $chemin, $n): void {
         $tmp = Annonce::with("Annonceur")->orderBy('id_annonce','desc')->where('id_categorie', "=", $n)->get();
         $annonce = [];
         foreach($tmp as $t) {
@@ -31,26 +30,16 @@ class CategoryController {
             $t->nom_annonceur = Annonceur::select("nom_annonceur")
                 ->where("id_annonceur", "=", $t->id_annonceur)
                 ->first()->nom_annonceur;
-            array_push($annonce, $t);
+            $annonce[] = $t;
         }
         $this->annonce = $annonce;
     }
 
-    public function displayCategorie($twig, $menu, $chemin, $cat, $n) {
+    public function displayCategorie($twig, $menu, string $chemin, $cat, string $n): void {
         $template = $twig->load("index.html.twig");
-        $menu = array(
-            array('href' => $chemin,
-                'text' => 'Acceuil'),
-            array('href' => $chemin."/cat/".$n,
-                'text' => Categorie::find($n)->nom_categorie)
-        );
+        $menu = [['href' => $chemin, 'text' => 'Acceuil'], ['href' => $chemin . '/cat/' . $n, 'text' => Categorie::find($n)->nom_categorie]];
 
         $this->getCategorieContent($chemin, $n);
-        echo $template->render(array(
-            "breadcrumb" => $menu,
-            "chemin" => $chemin,
-            "categories" => $cat,
-            "annonces" => $this->annonce));
+        echo $template->render(['breadcrumb' => $menu, 'chemin' => $chemin, 'categories' => $cat, 'annonces' => $this->annonce]);
     }
 }
-
