@@ -25,37 +25,88 @@ use Twig\Loader\FilesystemLoader;
 
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
+use Monolog\Processor\UidProcessor;
+use Monolog\Processor\WebProcessor;
 use Monolog\Level;
 
-// Create logs dir if missing
 if (!is_dir(__DIR__ . '/logs')) {
     @mkdir(__DIR__ . '/logs', 0777, true);
 }
 
-// Database
 Connection::createConn();
 
-// Slim app
 $app = AppFactory::create();
+$app->addBodyParsingMiddleware();
 $app->addRoutingMiddleware();
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
 
-// Logger
-$logger = new Logger('app');
-$logger->pushHandler(new StreamHandler(__DIR__ . '/logs/app.log', Level::Info));
+$logger = new Logger('http_logger');
+$logger->pushProcessor(new UidProcessor());
+$logger->pushProcessor(new WebProcessor());
+$logger->pushHandler(new StreamHandler(__DIR__ . '/logs/app.log', Logger::INFO));
 
-// Request logging middleware
 $app->add(function (Request $request, RequestHandler $handler) use ($logger): Response {
+    $start = microtime(true);
+
+    $method = $request->getMethod();
+    $uri = $request->getUri();
+    $path = $uri->getPath();
+    $query = $uri->getQuery();
+    $serverParams = $request->getServerParams();
+    $ip = $serverParams['REMOTE_ADDR'] ?? $request->getHeaderLine('X-Forwarded-For') ?: 'unknown';
+    $ua = $request->getHeaderLine('User-Agent');
+
+    $bodySnippet = '';
+    try {
+        $parsed = $request->getParsedBody();
+        if (is_array($parsed) || is_object($parsed)) {
+            $bodySnippet = substr(json_encode($parsed), 0, 512);
+        } elseif (is_string($parsed)) {
+            $bodySnippet = substr($parsed, 0, 512);
+        }
+    } catch (Throwable $e) {
+        $bodySnippet = '';
+    }
+
+    $logger->info('incoming_request', [
+        'method' => $method,
+        'path' => $path,
+        'query' => $query,
+        'client_ip' => $ip,
+        'user_agent' => $ua,
+        'body' => $bodySnippet
+    ]);
+
     $response = $handler->handle($request);
-    $logger->info(sprintf("%s %s %d", $request->getMethod(), $request->getUri()->getPath(), $response->getStatusCode()));
+
+    $duration = (microtime(true) - $start) * 1000; // ms
+    $status = $response->getStatusCode();
+    $size = $response->getBody()->getSize();
+
+    $logger->info('request_completed', [
+        'method' => $method,
+        'path' => $path,
+        'status' => $status,
+        'duration_ms' => (int)$duration,
+        'response_bytes' => $size,
+    ]);
+
     return $response;
 });
 
-// Twig
+$app->add(function ($request, $handler) {
+    ob_start();
+    $response = $handler->handle($request);
+    $content = ob_get_clean();
+    if ($content !== '') {
+        $response->getBody()->write($content);
+    }
+    return $response;
+});
+
 $loader = new FilesystemLoader(__DIR__ . '/template');
 $twig   = new Environment($loader);
 
-// Sessions & token
 if (!isset($_SESSION)) {
     session_start();
     $_SESSION['formStarted'] = true;
@@ -77,7 +128,6 @@ $chemin = dirname((string) $_SERVER['SCRIPT_NAME']);
 $cat = new CategoryController();
 $dpt = new DepartmentController();
 
-// Helper to call controllers that echo output (capture and return PSR-7 Response)
 $callAndCapture = function (callable $fn, Response $response) {
     ob_start();
     $fn();
@@ -86,7 +136,6 @@ $callAndCapture = function (callable $fn, Response $response) {
     return $response;
 };
 
-// Routes (using output buffering to keep existing controllers)
 $app->get('/', function (Request $request, Response $response) use ($twig, $menu, $chemin, $cat, $callAndCapture) {
     $index = new HomeController();
     return $callAndCapture(fn() => $index->displayAllAnnonce($twig, $menu, $chemin, $cat->getCategories()), $response);
@@ -175,7 +224,6 @@ $app->post('/key', function (Request $request, Response $response) use ($twig, $
     return $callAndCapture(fn() => $kg->generateKey($twig, $menu, $chemin, $cat->getCategories(), $nom), $response);
 });
 
-// Minimal API groups (keep previous behavior)
 $app->group('/api', function ($group) use ($twig, $menu, $chemin, $cat) {
     $group->group('/annonce', function ($g) {
         $g->get('/{id}', function (Request $request, Response $response, array $args) {
